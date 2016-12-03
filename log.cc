@@ -17,11 +17,19 @@ DEFINE_string(log_level, "info", "Minimum log level to display.");
 // Output control flags.
 DEFINE_bool(logtostdout, false, "Whether to log information to stdout or not.");
 DEFINE_bool(scoped_logging, false, "Whether or not to enable scoped logging.");
+
+#ifdef _WIN32
+DEFINE_string(
+    log_fmt,
+    "{level} @ {datetime} : {file} :: {indent}{message}",
+    "A Python-ish format string of the log header information.");
+#else
 DEFINE_string(
     log_fmt,
     "{nc}{lc}{level}{nc} {bold}{white}@{nc} {gray}{datetime}{nc} "
     ": {white}{italic}{file}{nc} {bold}{white}::{nc} {lc}{indent}{message}{nc}",
     "A Python-ish format string of the log header information.");
+#endif
 
 // Log file control flags.
 DEFINE_string(log_file, "", "File to send log information to.");
