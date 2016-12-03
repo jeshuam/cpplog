@@ -11,5 +11,5 @@ log: {
 speed_test: {
   type: c++/binary
   srcs: ["log_speed_test.cc"]
-  deps: [":log"]
+  deps: ["//:log"]
 }

@@ -1,8 +1,12 @@
 #pragma once
 
 #include <chrono>
+#include <condition_variable>
+#include <list>
+#include <mutex>
 #include <string>
 #include <sstream>
+#include <thread>
 #include <vector>
 
 namespace util {
@@ -23,6 +27,12 @@ class Log {
    * @return     true if we are ready, false otherwise.
    */
   static bool IsReadyToLog();
+
+  /**
+   * @brief      Wait for all remaining log messages to be emitted and then
+   *             stop. This must be called if --log_async is passed.
+   */
+  static void Finish();
 
   /**
    * @brief      Set the minimum log level required to display. Any log messages
@@ -69,6 +79,9 @@ class Log {
   static void _DoEmit(Level level, const std::string& message);
   static void _SaveMessage(Level level, int line, const char* file,
                            const std::string& message);
+  static void _QueueMessage(Level level, int line, const char* file,
+                            const std::string& message);
+  static void _ProcessQueuedMessages();
   static void _EmitSavedMessages();
 
   // Generate the header for the log at the current time.
@@ -94,6 +107,13 @@ class Log {
 
   // Messages which occur before main has started.
   static std::vector<LogMessageTuple>* _pre_init_messages;
+
+  // OPTIMIZATION: queue log messages. Only active when --log_async passed.
+  static std::list<LogMessageTuple> _log_queue;
+  static std::mutex _log_queue_lock;
+  static std::thread* _log_queue_worker;
+  static std::condition_variable _log_queue_notify;
+  static bool _log_queue_finished;
 
   // Current output log file.
   static std::ofstream _output_file;

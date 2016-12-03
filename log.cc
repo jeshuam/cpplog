@@ -43,14 +43,14 @@ DEFINE_int32(max_line_number_len, 4,
            "Maximum number of line number characters to print.");
 
 DEFINE_int32(max_formatted_log_message_len, 1024,
-           "The maximum length (in bytes) of the formatting log message. "
-           "This will influence the size of the log buffer used. This "
-           "should only be reduced (or increased) in special cases where "
-           "only short messages are logged (and memory is scarce) or very "
-           "very long log messages are logged.");
+             "The maximum length (in bytes) of the formatting log message. "
+             "This will influence the size of the log buffer used. This "
+             "should only be reduced (or increased) in special cases where "
+             "only short messages are logged (and memory is scarce) or very "
+             "very long log messages are logged.");
 
 DEFINE_int32(scoped_logging_indent, 2,
-           "Number of spaces to indent scopped logging messages.");
+             "Number of spaces to indent scopped logging messages.");
 
 DEFINE_string(datetime_fmt, "%a %b %d %T",
               "The format of the datetime to display to the screen. This only "
@@ -64,6 +64,9 @@ DEFINE_string(
     "(nanoseconds). This will adjust the log format so that the required "
     "precision is displayed (if supported by the system).");
 
+DEFINE_bool(log_async, false,
+            "Log messages to the file/screen asynchronously.");
+
 namespace util {
 namespace log {
 
@@ -71,6 +74,16 @@ namespace log {
 Log::Level Log::_min_log_level = INFO;
 std::vector<Log::LogMessageTuple>* Log::_pre_init_messages = nullptr;
 std::ofstream Log::_output_file;
+
+// OPTIMIZATION: don't actually log messages directly, just add them to a queue
+// and have a thread which does logging async. Order will be preserved, and
+// times will be correct, but the time that they are emitted may be some time
+// after they were logged.
+std::list<Log::LogMessageTuple> Log::_log_queue;
+std::mutex Log::_log_queue_lock;
+std::thread* Log::_log_queue_worker;
+std::condition_variable Log::_log_queue_notify;
+bool Log::_log_queue_finished = false;
 
 // Number of indents for scoped logging.
 int _scoped_level = 0;
@@ -112,7 +125,20 @@ static std::string GetSubSecondTimeAsString() {
   return time_str.str();
 }
 
-bool Log::IsReadyToLog() { return gflags::GetArgv0() != ""; }
+bool Log::IsReadyToLog() {
+  return gflags::ProgramInvocationName() != "UNKNOWN";
+}
+
+void Log::Finish() {
+  if (FLAGS_log_async) {
+    _log_queue_finished = true;
+    _log_queue_notify.notify_one();
+
+    if (_log_queue_worker != nullptr) {
+      _log_queue_worker->join();
+    }
+  }
+}
 
 void Log::SetMinLogLevel(Level level) { Log::_min_log_level = level; }
 
@@ -174,6 +200,9 @@ void Log::Emit(Log::Level level, int line, const char* file,
   // If we aren't ready to log, then save the log the message.
   if (!Log::IsReadyToLog()) {
     _SaveMessage(level, line, file, message);
+  } else if (FLAGS_log_async) {
+    _EmitSavedMessages();
+    _QueueMessage(level, line, file, message);
   } else {
     _EmitSavedMessages();
     _DoEmit(level, _GenerateLogMessage(level, line, file, message));
@@ -207,6 +236,45 @@ void Log::_SaveMessage(Level level, int line, const char* file,
   }
 
   _pre_init_messages->push_back(std::make_tuple(level, line, file, message));
+}
+
+void Log::_QueueMessage(Level level, int line, const char* file,
+                        const std::string& message) {
+  // Start the thread which will constantly log messages.
+  if (FLAGS_log_async && _log_queue_worker == nullptr) {
+    _log_queue_worker = new std::thread(Log::_ProcessQueuedMessages);
+  }
+
+  _log_queue_lock.lock();
+  _log_queue.push_back(std::make_tuple(level, line, file, message));
+  _log_queue_lock.unlock();
+  _log_queue_notify.notify_one();
+}
+
+void Log::_ProcessQueuedMessages() {
+  std::mutex mutex;
+  std::unique_lock<std::mutex> lock(mutex);
+  while (!_log_queue_finished) {
+    // Wait until we have been notified. Only wake up if there is something in
+    // the log queue.
+    _log_queue_notify.wait(lock, []{ return _log_queue.size() > 0; });
+
+    // Process everything in the log queue.
+    printf("Processing %d log messages\n", _log_queue.size());
+    while (!_log_queue.empty()) {
+      Level level;
+      int line;
+      const char* file;
+      std::string content;
+
+      // Lock the container.
+      _log_queue_lock.lock();
+      std::tie(level, line, file, content) = _log_queue.front();
+      _log_queue.pop_front();
+      _log_queue_lock.unlock();
+      _DoEmit(level, _GenerateLogMessage(level, line, file, content));
+    }
+  }
 }
 
 void Log::_EmitSavedMessages() {
