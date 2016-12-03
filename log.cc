@@ -64,7 +64,7 @@ DEFINE_string(
     "(nanoseconds). This will adjust the log format so that the required "
     "precision is displayed (if supported by the system).");
 
-DEFINE_bool(log_async, false,
+DEFINE_bool(log_async, true,
             "Log messages to the file/screen asynchronously.");
 
 namespace util {
@@ -260,7 +260,6 @@ void Log::_ProcessQueuedMessages() {
     _log_queue_notify.wait(lock, []{ return _log_queue.size() > 0; });
 
     // Process everything in the log queue.
-    printf("Processing %d log messages\n", _log_queue.size());
     while (!_log_queue.empty()) {
       Level level;
       int line;
