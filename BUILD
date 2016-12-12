@@ -1,10 +1,11 @@
 log: {
   type: c++/library
-  srcs: ["log.cc", "format.cc"]
-  hdrs: ["log.h", "format.h"]
+  srcs: ["log.cc"]
+  hdrs: ["log.h"]
   deps: [
     "//third_party/boost/filesystem",
     "//third_party/gflags",
+    "//util/string",
   ]
 }
 

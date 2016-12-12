@@ -1,15 +1,17 @@
 #include "log.h"
-#include "format.h"
 
 #include <stdarg.h>
 #include <ctime>
 
-#include <iostream>
-#include <iomanip>
 #include <fstream>
+#include <iomanip>
+#include <iostream>
 
-#include <boost/filesystem.hpp>
 #include <gflags/gflags.h>
+#include <boost/filesystem.hpp>
+
+#include "util/string/constants.h"
+#include "util/string/format.h"
 
 // Basic flags.
 DEFINE_string(log_level, "info", "Minimum log level to display.");
@@ -19,10 +21,8 @@ DEFINE_bool(logtostdout, false, "Whether to log information to stdout or not.");
 DEFINE_bool(scoped_logging, false, "Whether or not to enable scoped logging.");
 
 #ifdef _WIN32
-DEFINE_string(
-    log_fmt,
-    "{level} @ {datetime} : {file} :: {indent}{message}",
-    "A Python-ish format string of the log header information.");
+DEFINE_string(log_fmt, "{level} @ {datetime} : {file} :: {indent}{message}",
+              "A Python-ish format string of the log header information.");
 #else
 DEFINE_string(
     log_fmt,
@@ -34,7 +34,7 @@ DEFINE_string(
 // Log file control flags.
 DEFINE_string(log_file, "", "File to send log information to.");
 DEFINE_int32(log_max_size_mb, 100,
-              "Maximum size of the log file generated in MB.");
+             "Maximum size of the log file generated in MB.");
 DEFINE_double(log_file_rotation_threshold, 0.95,
               "Point at which the log file will be rotated. This is to ensure "
               "that the maximum log file size isn't exceeded. Valid values "
@@ -48,7 +48,7 @@ DEFINE_int32(
     "Note that this length does not include the path or the line number.");
 
 DEFINE_int32(max_line_number_len, 4,
-           "Maximum number of line number characters to print.");
+             "Maximum number of line number characters to print.");
 
 DEFINE_int32(max_formatted_log_message_len, 1024,
              "The maximum length (in bytes) of the formatting log message. "
@@ -72,11 +72,23 @@ DEFINE_string(
     "(nanoseconds). This will adjust the log format so that the required "
     "precision is displayed (if supported by the system).");
 
-DEFINE_bool(log_async, true,
-            "Log messages to the file/screen asynchronously.");
+DEFINE_bool(log_async, true, "Log messages to the file/screen asynchronously.");
 
 namespace util {
 namespace log {
+
+namespace {
+
+const string::FormatMapType kColorMapping = {
+    {"nc", string::color::kReset},        {"bold", string::color::kBold},
+    {"italic", string::color::kItalic},   {"black", string::color::kBlack},
+    {"red", string::color::kRed},         {"green", string::color::kGreen},
+    {"yellow", string::color::kYellow},   {"blue", string::color::kBlue},
+    {"magenta", string::color::kMagenta}, {"cyan", string::color::kCyan},
+    {"white", string::color::kWhite},     {"gray", string::color::kGray},
+};
+
+}  // namespace
 
 // Log static members.
 Log::Level Log::_min_log_level = INFO;
@@ -220,15 +232,16 @@ void Log::Emit(Log::Level level, int line, const char* file,
 void Log::_DoEmit(Level level, const std::string& message) {
   _OpenOutputFileIfNecessary();
   if (Log::_output_file.is_open()) {
-    Log::_output_file << FormatEraseTags(message) << std::endl;
+    Log::_output_file << string::FormatTrimTags(message) << std::endl;
 
     _RotateLogFileIfNecessary();
   }
 
   // Write the output to the display.
   if (FLAGS_logtostdout) {
-    std::string message_c = Format(message, {{"lc", _GetLevelColor(level)}});
-    std::cout << Format(message_c, ColorMapping) << std::endl;
+    std::string message_c =
+        string::FormatMap(message, {{"lc", _GetLevelColor(level)}});
+    std::cout << string::FormatMap(message_c, kColorMapping) << std::endl;
   }
 
   // If this was a fatal log message, die now.
@@ -265,7 +278,7 @@ void Log::_ProcessQueuedMessages() {
   while (!_log_queue_finished) {
     // Wait until we have been notified. Only wake up if there is something in
     // the log queue.
-    _log_queue_notify.wait(lock, []{ return _log_queue.size() > 0; });
+    _log_queue_notify.wait(lock, [] { return _log_queue.size() > 0; });
 
     // Process everything in the log queue.
     while (!_log_queue.empty()) {
@@ -316,8 +329,8 @@ std::string Log::_GetFilenameToDisplay(int line, const char* file) {
   // Pad the filename to the maximum length.
   if (filename.length() <= FLAGS_max_filename_len) {
     // Pad the filename with spaces (short files!).
-    filename = std::string(
-        FLAGS_max_filename_len - filename.length(), ' ') + filename;
+    filename =
+        std::string(FLAGS_max_filename_len - filename.length(), ' ') + filename;
   } else {
     // Truncate the filename (long files!). To do this, we separate the filename
     // and the extension. We always want to show the extension + the last
@@ -353,29 +366,29 @@ std::string Log::_GetFilenameToDisplay(int line, const char* file) {
 std::string Log::_GenerateLogMessage(Log::Level level, int line,
                                      const char* file,
                                      const std::string& message) {
-  std::unordered_map<std::string, std::string> params;
-  if (FormatHasTag(FLAGS_log_fmt, "level")) {
+  string::FormatMapType params;
+  if (string::FormatHasTag(FLAGS_log_fmt, "level")) {
     params["level"] = _GetLevelString(level);
   }
 
-  if (FormatHasTag(FLAGS_log_fmt, "datetime")) {
+  if (string::FormatHasTag(FLAGS_log_fmt, "datetime")) {
     params["datetime"] = _GetDatetimeString();
   }
 
-  if (FormatHasTag(FLAGS_log_fmt, "file")) {
+  if (string::FormatHasTag(FLAGS_log_fmt, "file")) {
     params["file"] = _GetFilenameToDisplay(line, file);
   }
 
-  if (FormatHasTag(FLAGS_log_fmt, "message")) {
+  if (string::FormatHasTag(FLAGS_log_fmt, "message")) {
     params["message"] = message;
   }
 
-  if (FormatHasTag(FLAGS_log_fmt, "indent")) {
+  if (string::FormatHasTag(FLAGS_log_fmt, "indent")) {
     params["indent"] =
         std::string(_scoped_level * FLAGS_scoped_logging_indent, ' ');
   }
 
-  return Format(FLAGS_log_fmt, params);
+  return string::FormatMap(FLAGS_log_fmt, params);
 }
 
 std::string Log::_GetLevelString(Log::Level level) {
@@ -401,18 +414,18 @@ std::string Log::_GetLevelColor(Log::Level level) {
   switch (level) {
     case TRACE:
     case DEBUG:
-      return Gray;
+      return string::color::kGray;
     case INFO:
-#ifdef __linux__
-      return Blue + Bold;
-#elif _WIN32
-      return Cyan + Bold;
-#endif
+#if OS_WINDOWS
+      return string::color::kCyan + string::color::kBold;
+#else
+      return string::color::kBlue + string::color::kBold;
+#endif  // OS_WINDOWS
     case WARNING:
-      return Yellow + Bold;
+      return string::color::kYellow + string::color::kBold;
     case ERROR:
     case FATAL:
-      return Red + Bold;
+      return string::color::kRed + string::color::kBold;
     default:
       return "";
   }
@@ -450,7 +463,8 @@ void Log::_OpenOutputFileIfNecessary() {
 void Log::_RotateLogFileIfNecessary() {
   // Check whether we have to rotate.
   boost::filesystem::path log_file_path(FLAGS_log_file);
-  double size_mb = boost::filesystem::file_size(log_file_path) / 1024.0 / 1024.0;
+  double size_mb =
+      boost::filesystem::file_size(log_file_path) / 1024.0 / 1024.0;
   if (size_mb < FLAGS_log_max_size_mb * FLAGS_log_file_rotation_threshold) {
     return;
   }

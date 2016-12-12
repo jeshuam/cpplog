@@ -4,3 +4,9 @@ windows: {
     link_flags: ["/DEBUG"]
   }
 }
+
+external: {
+  "//util/string": {
+    url: "https://github.com/jeshuam/cppstring"
+  }
+}
