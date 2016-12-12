@@ -4,8 +4,8 @@
 #include <condition_variable>
 #include <list>
 #include <mutex>
-#include <string>
 #include <sstream>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -166,9 +166,15 @@ class ScopedLog {
     }                                                       \
   } while (false)
 
-#define _LOG_SCOPED(level)                                                 \
-  ::util::log::ScopedLog _scoped_log##__LINE__(level, __PRETTY_FUNCTION__, \
-                                               __LINE__, __FILE__)
+#ifdef _MSC_VER  // Visual Studio
+#define FUNCTION_NAME __FUNCTION__
+#else
+#define FUNCTION_NAME __PRETTY_FUNCTION__
+#endif
+
+#define _LOG_SCOPED(level)                                                     \
+  ::util::log::ScopedLog _scoped_log##__LINE__(level, FUNCTION_NAME, __LINE__, \
+                                               __FILE__)
 
 // Timed log messages; log a message once every
 // interval.

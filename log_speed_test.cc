@@ -34,9 +34,12 @@ void TestLoggingWhenLoggingDisabled() {
   auto clean_time = duration_cast<microseconds>(end_clean - start_clean);
 
   // Print some stats.
-  unsigned int log_time_int = log_time.count(), clean_time_int = clean_time.count();
-  LOG_INFO("Time with LOG_INFO(): %dms (%.2fns per LOG_INFO())", log_time_int, double(log_time_int) / FLAGS_n * 1000);
-  LOG_INFO("Time with    nothing: %dms (%.2fns per loop)", clean_time_int, double(clean_time_int) / FLAGS_n * 1000);
+  unsigned int log_time_int = log_time.count(),
+               clean_time_int = clean_time.count();
+  LOG_INFO("Time with LOG_INFO(): %dms (%.2fns per LOG_INFO())", log_time_int,
+           double(log_time_int) / FLAGS_n * 1000);
+  LOG_INFO("Time with    nothing: %dms (%.2fns per loop)", clean_time_int,
+           double(clean_time_int) / FLAGS_n * 1000);
 }
 
 void TestLoggingComparedToPrintf() {
@@ -58,9 +61,12 @@ void TestLoggingComparedToPrintf() {
   auto clean_time = duration_cast<milliseconds>(end_clean - start_clean);
 
   // Print some stats.
-  unsigned int log_time_int = log_time.count(), clean_time_int = clean_time.count();
-  LOG_INFO("Time with LOG_INFO(): %dms (%.2fns per LOG_INFO())", log_time_int, double(log_time_int) / FLAGS_n * 1000);
-  LOG_INFO("Time with   printf(): %dms (%.2fns per printf())", clean_time_int, double(clean_time_int) / FLAGS_n * 1000);
+  unsigned int log_time_int = log_time.count(),
+               clean_time_int = clean_time.count();
+  LOG_INFO("Time with LOG_INFO(): %dms (%.2fns per LOG_INFO())", log_time_int,
+           double(log_time_int) / FLAGS_n * 1000);
+  LOG_INFO("Time with   printf(): %dms (%.2fns per printf())", clean_time_int,
+           double(clean_time_int) / FLAGS_n * 1000);
 }
 
 void TestLoggingComparedToPrintfWithSimpleFormat() {
@@ -83,9 +89,12 @@ void TestLoggingComparedToPrintfWithSimpleFormat() {
   auto clean_time = duration_cast<milliseconds>(end_clean - start_clean);
 
   // Print some stats.
-  unsigned int log_time_int = log_time.count(), clean_time_int = clean_time.count();
-  LOG_INFO("Time with LOG_INFO(): %dms (%.2fns per LOG_INFO())", log_time_int, double(log_time_int) / FLAGS_n * 1000);
-  LOG_INFO("Time with   printf(): %dms (%.2fns per printf())", clean_time_int, double(clean_time_int) / FLAGS_n * 1000);
+  unsigned int log_time_int = log_time.count(),
+               clean_time_int = clean_time.count();
+  LOG_INFO("Time with LOG_INFO(): %dms (%.2fns per LOG_INFO())", log_time_int,
+           double(log_time_int) / FLAGS_n * 1000);
+  LOG_INFO("Time with   printf(): %dms (%.2fns per printf())", clean_time_int,
+           double(clean_time_int) / FLAGS_n * 1000);
 }
 
 int main(int argc, char** argv) {
@@ -96,13 +105,15 @@ int main(int argc, char** argv) {
 
   if (FLAGS_test == 1) {
     LOG_INFO(
-        "1. How does LOG_INFO() compare to an empty loop when logging disabled?");
+        "1. How does LOG_INFO() compare to an empty loop when logging "
+        "disabled?");
     TestLoggingWhenLoggingDisabled();
   } else if (FLAGS_test == 2) {
     LOG_INFO("2. How does LOG_INFO() compare to printf()?");
     TestLoggingComparedToPrintf();
   } else if (FLAGS_test == 3) {
-    LOG_INFO("3. How does LOG_INFO() with a simple format compare to printf()?");
+    LOG_INFO(
+        "3. How does LOG_INFO() with a simple format compare to printf()?");
     TestLoggingComparedToPrintfWithSimpleFormat();
   } else {
     LOG_FATAL("Invalid test id %s", 3);

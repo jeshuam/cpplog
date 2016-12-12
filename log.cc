@@ -204,6 +204,7 @@ void Log::EmitFormat(Log::Level level, int line, const char* file,
   vsnprintf(buffer, FLAGS_max_formatted_log_message_len, fmt, args);
   Emit(level, line, file, buffer);
   delete[] buffer;
+  va_end(args);
 }
 
 void Log::Emit(Log::Level level, int line, const char* file,
@@ -278,7 +279,8 @@ void Log::_ProcessQueuedMessages() {
   while (!_log_queue_finished) {
     // Wait until we have been notified. Only wake up if there is something in
     // the log queue.
-    _log_queue_notify.wait(lock, [] { return _log_queue.size() > 0; });
+    _log_queue_notify.wait(
+        lock, [] { return _log_queue_finished || _log_queue.size() > 0; });
 
     // Process everything in the log queue.
     while (!_log_queue.empty()) {
