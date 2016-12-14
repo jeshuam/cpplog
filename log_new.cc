@@ -65,8 +65,8 @@ DEFINE_uint32(v, 0,
               "level <= this will be logged.");
 
 // OUTPUT FILE OPTIONS
-DEFINE_uint32(logfile_max_size, 50 * 1024 * 1024,
-              "The maximum number of bytes a single logging file will take up. "
+DEFINE_uint32(logfile_max_size_mb, 50,
+              "The maximum number of MiB a single logging file will take up. "
               "Note that actual disk usage might vary, because the logging "
               "system will keep the previous log file in addition to the "
               "current log file.");
@@ -84,6 +84,10 @@ DEFINE_string(datetime_format, "%a %b %d %T",
 // PROCESSING OPTIONS
 DEFINE_bool(async_logging, false,
             "When enabled, perform logging asynchronously.");
+
+DEFINE_uint32(async_queue_max_len, 10000,
+              "Maximum number of log messages to be stored in the queue until "
+              "any additional messages are blocked.");
 
 namespace cpplog {
 
@@ -219,18 +223,16 @@ void _ProcessMessageQueue() {
   while (true) {
     // Wait for something to appear.
     LOG_MESSAGE_QUEUE_INSERT.wait(lock,
-                                  [] { return LOG_MESSAGE_QUEUE.size() > 0; });
+                                  [] { return LOG_MESSAGE_QUEUE.size() > 1; });
 
-    if (LOG_MESSAGE_QUEUE.size() > 0) {
-      // Get the next thing to display.
-      auto msg = LOG_MESSAGE_QUEUE.front();
+    // Get the next thing to display.
+    auto msg = LOG_MESSAGE_QUEUE.front();
 
-      // Emit the message.
-      _DoEmitMessage(msg);
+    // Emit the message.
+    _DoEmitMessage(msg);
 
-      // Remove it from the queue now that it has been displayed.
-      LOG_MESSAGE_QUEUE.pop_front();
-    }
+    // Remove it from the queue now that it has been displayed.
+    LOG_MESSAGE_QUEUE.pop_front();
   }
 }
 
@@ -313,12 +315,13 @@ void LogMessage::Emit(const std::string& line_fmt) const {
 
       // Check to see if we need to rotate the file.
       auto file_size = boost::filesystem::file_size(out_file_path);
-      if (file_size > FLAGS_logfile_max_size) {
+      if (file_size / 1024.0 / 1024.0 > FLAGS_logfile_max_size_mb) {
         // Close the file.
         out_file.close();
 
         // Move the file to the file + 1.
-        boost::filesystem::rename(out_file_path, out_file_path + ".old");
+        boost::filesystem::rename(out_file_path,
+                                  out_file_path.string() + ".old");
         out_file.open(out_file_path.string());
       }
 
@@ -333,9 +336,14 @@ void QueueMessage(const LogMessage& msg) {
 
   if (FLAGS_async_logging) {
     insert_lock.lock();
+    // Block until the message queue is a sensible size.
+    while (LOG_MESSAGE_QUEUE.size() > FLAGS_async_queue_max_len) {
+      ;
+    }
+
     LOG_MESSAGE_QUEUE.push_back(msg);
-    LOG_MESSAGE_QUEUE_INSERT.notify_one();
     insert_lock.unlock();
+    LOG_MESSAGE_QUEUE_INSERT.notify_one();
   } else {
     _DoEmitMessage(msg);
   }
@@ -347,7 +355,7 @@ void QueueMessage(const LogMessage& msg) {
 }
 
 Logger::~Logger() {
-  while (internal::LOG_MESSAGE_QUEUE.size() > 0) {
+  while (internal::LOG_MESSAGE_QUEUE.size() > 1) {
     ;  // do nothing, wait for the thread
   }
 }
@@ -357,6 +365,9 @@ Logger::~Logger() {
 internal::Logger Init() {
   // Start the thread, if required.
   if (FLAGS_async_logging) {
+    // Insert a dummy message into the log, which will never be logged.
+    internal::LOG_MESSAGE_QUEUE.push_back(
+        internal::LogMessage(internal::TRACE, 0, 0, "", "", {}));
     new std::thread(internal::_ProcessMessageQueue);
   }
 
@@ -373,23 +384,20 @@ internal::Logger Init() {
   return internal::Logger();
 }
 
-void Wait() {
-  while (internal::LOG_MESSAGE_QUEUE.size() > 0) {
-    ;  // do nothing, wait for the thread
-  }
-}
-
 }  // namespace cpplog
 
 int main(int argc, char** argv) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
   static auto _ = cpplog::Init();
 
-  LOG_TRACE("a = {}, {}", {1, "c"});
-  LOG_DEBUG("a = {}, {}", {1, "c"});
-  LOG_INFO("a = {}, {}", {1, "c"});
-  LOG_WARNING("a = {}, {}", {1, "c"});
-  LOG_ERROR("a = {}, {}", {1, "c"});
+  while (true) {
+    LOG_TRACE("a = {}, {}", {1, "c"});
+    LOG_DEBUG("a = {}, {}", {1, "c"});
+    LOG_INFO("a = {}, {}", {1, "c"});
+    LOG_WARNING("a = {}, {}", {1, "c"});
+    LOG_ERROR("a = {}, {}", {1, "c"});
+  }
+
   LOG_FATAL("a = {}, {}", {1, "c"});
 
   return 0;
