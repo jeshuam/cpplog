@@ -4,10 +4,8 @@
 
 #include <chrono>
 
-DECLARE_bool(logtostdout);
-DECLARE_string(log_fmt);
-DECLARE_string(log_file);
-DECLARE_bool(log_async);
+DECLARE_bool(logtostderr);
+DECLARE_string(line_format);
 
 using namespace std::chrono;
 
@@ -15,13 +13,12 @@ DEFINE_int32(test, 1, "The test to run.");
 DEFINE_int32(n, 10000, "Number of log messages to emit.");
 
 void TestLoggingWhenLoggingDisabled() {
-  FLAGS_logtostdout = false;
+  FLAGS_logtostderr = false;
   auto start_log = system_clock::now();
   for (int i = 0; i < FLAGS_n; i++) {
     LOG_INFO("Test 1");
   }
   auto end_log = system_clock::now();
-  FLAGS_logtostdout = true;
 
   auto start_clean = system_clock::now();
   for (int i = 0; i < FLAGS_n; i++) {
@@ -36,14 +33,18 @@ void TestLoggingWhenLoggingDisabled() {
   // Print some stats.
   unsigned int log_time_int = log_time.count(),
                clean_time_int = clean_time.count();
-  LOG_INFO("Time with LOG_INFO(): %dms (%.2fns per LOG_INFO())", log_time_int,
-           double(log_time_int) / FLAGS_n * 1000);
-  LOG_INFO("Time with    nothing: %dms (%.2fns per loop)", clean_time_int,
-           double(clean_time_int) / FLAGS_n * 1000);
+  while (cpplog::MessagesInQueue() > 0) {
+    ;
+  }
+
+  FLAGS_logtostderr = true;
+  LOG_INFO("Time with LOG_INFO(): {}ms ({:.2f}ns per LOG_INFO())",
+           {log_time_int, double(log_time_int) / FLAGS_n * 1000});
+  LOG_INFO("Time with    nothing: {}ms ({:.2f}ns per loop)",
+           {clean_time_int, double(clean_time_int) / FLAGS_n * 1000});
 }
 
 void TestLoggingComparedToPrintf() {
-  // FLAGS_log_file = "log/log.txt";
   auto start_log = system_clock::now();
   for (int i = 0; i < FLAGS_n; i++) {
     LOG_INFO("Test 2");
@@ -63,15 +64,14 @@ void TestLoggingComparedToPrintf() {
   // Print some stats.
   unsigned int log_time_int = log_time.count(),
                clean_time_int = clean_time.count();
-  LOG_INFO("Time with LOG_INFO(): %dms (%.2fns per LOG_INFO())", log_time_int,
-           double(log_time_int) / FLAGS_n * 1000);
-  LOG_INFO("Time with   printf(): %dms (%.2fns per printf())", clean_time_int,
-           double(clean_time_int) / FLAGS_n * 1000);
+  LOG_INFO("Time with LOG_INFO(): {}ms ({:.2f}ns per LOG_INFO())",
+           {log_time_int, double(log_time_int) / FLAGS_n * 1000});
+  LOG_INFO("Time with   printf(): {}ms ({:.2f}ns per printf())",
+           {clean_time_int, double(clean_time_int) / FLAGS_n * 1000});
 }
 
 void TestLoggingComparedToPrintfWithSimpleFormat() {
-  std::string old_header_fmt = FLAGS_log_fmt;
-  FLAGS_log_fmt = "{message}";
+  FLAGS_line_format = "{message}";
   auto start_log = system_clock::now();
   for (int i = 0; i < FLAGS_n; i++) {
     LOG_INFO("Test 3");
@@ -91,16 +91,17 @@ void TestLoggingComparedToPrintfWithSimpleFormat() {
   // Print some stats.
   unsigned int log_time_int = log_time.count(),
                clean_time_int = clean_time.count();
-  LOG_INFO("Time with LOG_INFO(): %dms (%.2fns per LOG_INFO())", log_time_int,
-           double(log_time_int) / FLAGS_n * 1000);
-  LOG_INFO("Time with   printf(): %dms (%.2fns per printf())", clean_time_int,
-           double(clean_time_int) / FLAGS_n * 1000);
+  LOG_INFO("Time with LOG_INFO(): {}ms ({:.2f}ns per LOG_INFO())",
+           {log_time_int, double(log_time_int) / FLAGS_n * 1000});
+  LOG_INFO("Time with   printf(): {}ms ({:.2f}ns per printf())",
+           {clean_time_int, double(clean_time_int) / FLAGS_n * 1000});
 }
 
 int main(int argc, char** argv) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
+  auto _ = cpplog::Init();
 
-  FLAGS_logtostdout = true;
+  FLAGS_logtostderr = true;
   LOG_INFO("Starting speed tests!");
 
   if (FLAGS_test == 1) {
@@ -116,8 +117,6 @@ int main(int argc, char** argv) {
         "3. How does LOG_INFO() with a simple format compare to printf()?");
     TestLoggingComparedToPrintfWithSimpleFormat();
   } else {
-    LOG_FATAL("Invalid test id %s", 3);
+    LOG_FATAL("Invalid test id %s", {3});
   }
-
-  util::log::Log::Finish();
 }
