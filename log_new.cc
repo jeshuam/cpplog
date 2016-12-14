@@ -1,8 +1,10 @@
 #include "log_new.h"
 
+#include <condition_variable>
 #include <ctime>
 #include <deque>
 #include <mutex>
+#include <thread>
 
 #include <gflags/gflags.h>
 
@@ -55,18 +57,6 @@ std::deque<LogMessage> message_queue;
 std::mutex message_queue_insert_lock, emit_lock;
 std::thread* message_processing_thread;
 std::condition_variable message_queue_condition;
-
-/**
- * A mapping from  color names --> colors.
- */
-const string::FormatMapType kColorMapping = {
-    {"nc", string::color::kReset},        {"bold", string::color::kBold},
-    {"italic", string::color::kItalic},   {"black", string::color::kBlack},
-    {"red", string::color::kRed},         {"green", string::color::kGreen},
-    {"yellow", string::color::kYellow},   {"blue", string::color::kBlue},
-    {"magenta", string::color::kMagenta}, {"cyan", string::color::kCyan},
-    {"white", string::color::kWhite},     {"gray", string::color::kGray},
-};
 
 std::string _LevelToString(Level level) {
   switch (level) {
@@ -166,13 +156,27 @@ void LogMessage::Emit(const std::string& line_fmt, std::ostream& out,
                                    {"file", file_},
                                    {"line", line_},
                                    {"datetime", time_str_buffer},
-                                   {"level", _LevelToString(level_)},
-                                   {"lc", color ? _GetColor(level_) : ""}},
+                                   {"level", _LevelToString(level_)}},
                         true);
 
   // Add colors if requested.
   if (color) {
-    line_formatted = string::FormatMap(line_formatted, kColorMapping);
+    line_formatted = string::FormatMap(line_formatted,
+                                       {
+                                           {"nc", string::color::kReset},
+                                           {"bold", string::color::kBold},
+                                           {"italic", string::color::kItalic},
+                                           {"black", string::color::kBlack},
+                                           {"red", string::color::kRed},
+                                           {"green", string::color::kGreen},
+                                           {"yellow", string::color::kYellow},
+                                           {"blue", string::color::kBlue},
+                                           {"magenta", string::color::kMagenta},
+                                           {"cyan", string::color::kCyan},
+                                           {"white", string::color::kWhite},
+                                           {"gray", string::color::kGray},
+                                           {"lc", _GetColor(level_)},
+                                       });
   }
 
   out << string::FormatTrimTags(line_formatted) << std::endl;
