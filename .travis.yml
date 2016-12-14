@@ -5,3 +5,5 @@ before_install:
 install: go get -u github.com/jeshuam/jbuild && go install github.com/jeshuam/jbuild
 script: ${GOPATH}/bin/jbuild --show_log --external_repo_dir=/tmp/build/external --base_workspace_files=${GOPATH}/src/github.com/jeshuam/jbuild/cfg run //:speed_test
 language: c++
+notifications:
+  email: false
