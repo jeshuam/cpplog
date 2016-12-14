@@ -13,14 +13,14 @@ namespace internal {
 /**
  * @brief      An enum representing the levels within the logging system.
  */
-enum Level { TRACE, DEBUG, INFO, WARNING, ERROR, FATAL };
+enum Level { TRACE, DEBUG, INFO, WARNING, ERROR, FATAL, N_LEVELS };
 
 /**
  * @brief      A class representing a single log message.
  */
 class LogMessage {
  public:
-  LogMessage(Level level, int line, const std::string& file,
+  LogMessage(Level level, int verbosity, int line, const std::string& file,
              const std::string& msg_format,
              const string::FormatListType& format_args);
 
@@ -42,14 +42,9 @@ class LogMessage {
    *               the color they represent. You can also do the same with
    *               punctuation.
    *
-   *             This message will then be output along the given stream.
-   *
    * @param[in]  line_fmt  The format string of the line to output.
-   * @param      out       The stream to output the message to.
-   * @param[in]  color     Whether or not to enable colored output.
    */
-  void Emit(const std::string& line_fmt, std::ostream& out,
-            bool color = true) const;
+  void Emit(const std::string& line_fmt) const;
 
  private:
   /**
@@ -60,7 +55,7 @@ class LogMessage {
   /**
    * The line this log messages was printed on.
    */
-  int line_;
+  int verbosity_, line_;
 
   /**
    * The filename that this log message was printed from.
@@ -82,6 +77,8 @@ class LogMessage {
    * The formatting args required to format `msg`.
    */
   string::FormatListType format_args_;
+
+  static std::array<std::ofstream*, N_LEVELS> _log_files;
 };
 
 /**
@@ -93,13 +90,20 @@ void QueueMessage(const LogMessage& message);
 
 }  // namespace internal
 
-class Logger {
- public:
-  ~Logger();
-};
-
-// Initialize the logging system.
-Logger Init();
+/**
+ * @brief      Initialize the logging system. This function is only required if
+ *             --async_logging is set. This should be called in the main()
+ *             function _after_ parsing arguments but _before_ any log messages.
+ *
+ *                 int main(int argc, char** argv) {
+ *                   gflags::ParseCommandLineFlags(&argc, &argv, true);
+ *                   cpplog::Init();
+ *                 }
+ *
+ *             Without this init() call, no log messages will display. This can
+ *             be omitted when using synchronous logging.
+ */
+void Init();
 
 }  // namespace cpplog
 
@@ -110,11 +114,11 @@ Logger Init();
  * @param      MSG_FORMAT  The cppstring format string for the  message.
  * @param      ...         The cppstring argument list.
  */
-#define LOG(LEVEL, MSG_FORMAT, ...)                                         \
-  do {                                                                      \
-    ::cpplog::internal::LogMessage msg(::cpplog::internal::LEVEL, __LINE__, \
-                                       __FILE__, MSG_FORMAT, __VA_ARGS__);  \
-    ::cpplog::internal::QueueMessage(msg);                                  \
+#define LOG(LEVEL, MSG_FORMAT, ...)                                            \
+  do {                                                                         \
+    ::cpplog::internal::QueueMessage(                                          \
+        ::cpplog::internal::LogMessage(::cpplog::internal::LEVEL, 0, __LINE__, \
+                                       __FILE__, MSG_FORMAT, __VA_ARGS__));    \
   } while (false)
 
 #define LOG_TRACE(MSG_FORMAT, ...) LOG(TRACE, MSG_FORMAT, __VA_ARGS__)

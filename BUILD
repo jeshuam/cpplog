@@ -20,7 +20,8 @@ log_new: {
   srcs: ["log_new.cc"]
   hdrs: ["log_new.h"]
   deps: [
-    "//util/string",
+    "//third_party/boost/filesystem",
     "//third_party/gflags",
+    "//util/string",
   ]
 }
