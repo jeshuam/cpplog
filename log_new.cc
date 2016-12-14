@@ -66,13 +66,10 @@ DEFINE_uint32(v, 0,
 
 // OUTPUT FILE OPTIONS
 DEFINE_uint32(logfile_max_size, 50 * 1024 * 1024,
-              "The maximum size of a single logfile. A size of 0 means there "
-              "is no maximum size. In BYTES.");
-
-DEFINE_uint32(
-    logfile_n, 2,
-    "Number of logfiles that will be created before old files will "
-    "be deleted. The total usage is `logfile_max_size * logfile_n * 7`.");
+              "The maximum number of bytes a single logging file will take up. "
+              "Note that actual disk usage might vary, because the logging "
+              "system will keep the previous log file in addition to the "
+              "current log file.");
 
 // OUTPUT FORMATS
 DEFINE_string(line_format,
@@ -306,12 +303,23 @@ void LogMessage::Emit(const std::string& line_fmt) const {
     // Log to all of the relevant files.
     auto min_level = _StringToLevel(FLAGS_min_log_level_file);
     for (int i = min_level; i <= level_; i++) {
+      auto out_file_path =
+          boost::filesystem::path(FLAGS_logfile_dir) /
+          (FLAGS_logfile_name + "." + _LevelToLongString((Level)i));
       std::ofstream& out_file = LOG_FILES[i];
       if (!out_file.is_open()) {
-        boost::filesystem::path dir = FLAGS_logfile_dir;
-        boost::filesystem::path filename =
-            FLAGS_logfile_name + "." + _LevelToLongString((Level)i);
-        out_file.open((dir / filename).string());
+        out_file.open(out_file_path.string());
+      }
+
+      // Check to see if we need to rotate the file.
+      auto file_size = boost::filesystem::file_size(out_file_path);
+      if (file_size > FLAGS_logfile_max_size) {
+        // Close the file.
+        out_file.close();
+
+        // Move the file to the file + 1.
+        boost::filesystem::rename(out_file_path, out_file_path + ".old");
+        out_file.open(out_file_path.string());
       }
 
       out_file << string::FormatTrimTags(line_formatted) << std::endl;
