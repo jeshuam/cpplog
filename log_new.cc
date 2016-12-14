@@ -2,6 +2,7 @@
 
 #include <array>
 #include <condition_variable>
+#include <cstdlib>
 #include <ctime>
 #include <deque>
 #include <fstream>
@@ -54,6 +55,11 @@ DEFINE_string(min_log_level, "info",
               "that multiple log files are written, so this flag will not "
               "affect those.");
 
+DEFINE_string(min_log_level_file, "trace",
+              "The minimum log level to display when writing to files. If set "
+              "to anything other than TRACE, files lower than the given level "
+              "will not be created.");
+
 DEFINE_uint32(v, 0,
               "The verbosity level to log at. Only messages with a verbosity "
               "level <= this will be logged.");
@@ -99,23 +105,6 @@ std::condition_variable LOG_MESSAGE_QUEUE_INSERT;
  * will be written to from then on.
  */
 std::array<std::ofstream, N_LEVELS> LOG_FILES;
-
-/**
- * @brief      A Logger is a utility class that will, when destroyed, wait for
- *             all pending log messages to be displayed before finishing. This
- *             can be used to ensure that async logging messages are properly
- *             printed before termination.
- */
-class Logger {
- public:
-  ~Logger() {
-    while (internal::LOG_MESSAGE_QUEUE.size() > 0) {
-      ;  // do nothing, wait for the thread
-    }
-  }
-};
-
-Logger _ensure_messages_finished;
 
 // UTILITY FUNCTIONS.
 std::string _LevelToString(Level level) {
@@ -256,7 +245,7 @@ LogMessage::LogMessage(Level level, int verbosity, int line,
     : level_(level),
       verbosity_(verbosity),
       line_(line),
-      file_(file),
+      file_(boost::filesystem::path(file).filename().string()),
       log_time_(std::chrono::system_clock::now()),
       msg_format_(msg_format),
       format_args_(format_args) {}
@@ -314,8 +303,9 @@ void LogMessage::Emit(const std::string& line_fmt) const {
 
   // Output to files.
   if (FLAGS_logtofile) {
-    // Lof to all of the relevant files.
-    for (int i = level_; i < N_LEVELS; i++) {
+    // Log to all of the relevant files.
+    auto min_level = _StringToLevel(FLAGS_min_log_level_file);
+    for (int i = min_level; i <= level_; i++) {
       std::ofstream& out_file = LOG_FILES[i];
       if (!out_file.is_open()) {
         boost::filesystem::path dir = FLAGS_logfile_dir;
@@ -341,11 +331,22 @@ void QueueMessage(const LogMessage& msg) {
   } else {
     _DoEmitMessage(msg);
   }
+
+  // If the message was fatal, die.
+  if (msg.level() == FATAL) {
+    std::exit(EXIT_FAILURE);
+  }
+}
+
+Logger::~Logger() {
+  while (internal::LOG_MESSAGE_QUEUE.size() > 0) {
+    ;  // do nothing, wait for the thread
+  }
 }
 
 }  // namespace internal
 
-void Init() {
+internal::Logger Init() {
   // Start the thread, if required.
   if (FLAGS_async_logging) {
     new std::thread(internal::_ProcessMessageQueue);
@@ -360,16 +361,28 @@ void Init() {
           boost::filesystem::basename(gflags::ProgramInvocationName());
     }
   }
+
+  return internal::Logger();
+}
+
+void Wait() {
+  while (internal::LOG_MESSAGE_QUEUE.size() > 0) {
+    ;  // do nothing, wait for the thread
+  }
 }
 
 }  // namespace cpplog
 
 int main(int argc, char** argv) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
-  cpplog::Init();
+  static auto _ = cpplog::Init();
 
-  LOG_INFO("a = {}, {}", {1, "c"});
   LOG_TRACE("a = {}, {}", {1, "c"});
+  LOG_DEBUG("a = {}, {}", {1, "c"});
+  LOG_INFO("a = {}, {}", {1, "c"});
+  LOG_WARNING("a = {}, {}", {1, "c"});
+  LOG_ERROR("a = {}, {}", {1, "c"});
+  LOG_FATAL("a = {}, {}", {1, "c"});
 
   return 0;
 }

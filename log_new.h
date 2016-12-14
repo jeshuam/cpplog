@@ -46,6 +46,11 @@ class LogMessage {
    */
   void Emit(const std::string& line_fmt) const;
 
+  /**
+   * @brief      Get the level the log message was logged at.
+   */
+  Level level() const { return level_; }
+
  private:
   /**
    * The level this log message is being printed at.
@@ -88,6 +93,17 @@ class LogMessage {
  */
 void QueueMessage(const LogMessage& message);
 
+/**
+ * @brief      A Logger is a utility class that will, when destroyed, wait for
+ *             all pending log messages to be displayed before finishing. This
+ *             can be used to ensure that async logging messages are properly
+ *             printed before termination.
+ */
+class Logger {
+ public:
+  ~Logger();
+};
+
 }  // namespace internal
 
 /**
@@ -103,7 +119,7 @@ void QueueMessage(const LogMessage& message);
  *             Without this init() call, no log messages will display. This can
  *             be omitted when using synchronous logging.
  */
-void Init();
+internal::Logger Init();
 
 }  // namespace cpplog
 
