@@ -1,5 +1,5 @@
 install: go get -u github.com/jeshuam/jbuild && go install github.com/jeshuam/jbuild
-script: find / 2&>1 | grep "clang++" #${GOPATH}/bin/jbuild --show_log --external_repo_dir=/tmp/build/external --base_workspace_files=${GOPATH}/src/github.com/jeshuam/jbuild/cfg run //:speed_test
+script: ${GOPATH}/bin/jbuild --cc_compiler="clang++-3.8" --show_log --external_repo_dir=/tmp/build/external --base_workspace_files=${GOPATH}/src/github.com/jeshuam/jbuild/cfg run //:speed_test
 language: generic
 notifications:
   email: false
