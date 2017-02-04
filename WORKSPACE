@@ -5,6 +5,12 @@ windows: {
   }
 }
 
+linux: {
+  compile_flags: [
+    "-std=c++11",
+  ]
+}
+
 external: {
   "//util/string": {
     url: "https://github.com/jeshuam/cppstring"
