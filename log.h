@@ -152,6 +152,8 @@ int MessagesInQueue();
 #define LOG_ERROR(...) LOG(ERROR, __VA_ARGS__)
 #define LOG_FATAL(...) LOG(FATAL, __VA_ARGS__)
 
+#if _cplusplus >= 201402L
+
 using namespace std::literals;
 using namespace std::chrono_literals;
 #define LOG_EVERY(FREQ, LEVEL, MSG_FORMAT, ...)                            \
@@ -177,6 +179,8 @@ using namespace std::chrono_literals;
   LOG_EVERY(FREQ, WARNING, MSG_FORMAT, __VA_ARGS__)
 #define LOG_ERROR_EVERY(FREQ, MSG_FORMAT, ...) \
   LOG_EVERY(FREQ, ERROR, MSG_FORMAT, __VA_ARGS__)
+
+#endif  // _cplusplus14
 
 #define LOG_FIRST(N, LEVEL, MSG_FORMAT, ...)                            \
   do {                                                                  \
