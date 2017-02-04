@@ -3,7 +3,7 @@ before_install:
   - sudo apt-get install -y golang
 
 install: go get -u github.com/jeshuam/jbuild && go install github.com/jeshuam/jbuild
-script: clang++ --version #${GOPATH}/bin/jbuild --show_log --external_repo_dir=/tmp/build/external --base_workspace_files=${GOPATH}/src/github.com/jeshuam/jbuild/cfg run //:speed_test
+script: clang++-3.8 --version #${GOPATH}/bin/jbuild --show_log --external_repo_dir=/tmp/build/external --base_workspace_files=${GOPATH}/src/github.com/jeshuam/jbuild/cfg run //:speed_test
 language: generic
 notifications:
   email: false
