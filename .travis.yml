@@ -11,5 +11,7 @@ notifications:
   email: false
 addons:
   apt:
+    sources:
+    - ubuntu-toolchain-r-test
     packages:
     - clang-3.8
