@@ -5,8 +5,8 @@ before_install:
   - sudo apt-get install -y golang
 
 install: go get -u github.com/jeshuam/jbuild && go install github.com/jeshuam/jbuild
-script: ${GOPATH}/bin/jbuild --show_log --external_repo_dir=/tmp/build/external --base_workspace_files=${GOPATH}/src/github.com/jeshuam/jbuild/cfg run //:speed_test
-language: c++
+script: ${GOPATH}/bin/jbuild --cc_compiler=clang++-3.8 --show_log --external_repo_dir=/tmp/build/external --base_workspace_files=${GOPATH}/src/github.com/jeshuam/jbuild/cfg run //:speed_test
+language: generic
 notifications:
   email: false
 addons:
@@ -14,7 +14,5 @@ addons:
     sources:
       - ubuntu-toolchain-r-test
       - llvm-toolchain-precise
-      - llvm-toolchain-precise-3.7
     packages:
-      - clang
       - clang-3.8
